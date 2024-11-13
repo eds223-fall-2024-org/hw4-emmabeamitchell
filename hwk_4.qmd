@@ -18,6 +18,7 @@ library(tmap)
 library(stars)
 library(terra)
 library(sf)
+library(raster)
 ```
 
 #### Read in data
@@ -25,19 +26,19 @@ library(sf)
 ```{r}
 # Read in data
 wc_eez <- st_read(here("data", "data", 'wc_regions_clean.shp'))
-temp_2008 <- read_stars(here("data", "data", "average_annual_sst_2008.tif"))
-temp_2009 <- read_stars(here("data", "data", "average_annual_sst_2009.tif"))
-temp_2010 <- read_stars(here("data", "data", "average_annual_sst_2010.tif"))
-temp_2011 <- read_stars(here("data", "data", "average_annual_sst_2011.tif"))
-temp_2012 <- read_stars(here("data", "data", "average_annual_sst_2012.tif"))
-depth <- read_stars(here("data", "data", "depth.tif"))
+temp_2008 <- rast(here("data", "data", "average_annual_sst_2008.tif"))
+temp_2009 <- rast(here("data", "data", "average_annual_sst_2009.tif"))
+temp_2010 <- rast(here("data", "data", "average_annual_sst_2010.tif"))
+temp_2011 <- rast(here("data", "data", "average_annual_sst_2011.tif"))
+temp_2012 <- rast(here("data", "data", "average_annual_sst_2012.tif"))
+depth <- rast(here("data", "data", "depth.tif"))
 ```
 
 ## Process data
 
 ```{r}
 # combine temp rasters into stack
-sst_stack <- c(temp_2008, temp_2009, temp_2010, temp_2011, temp_2012, along = "time")
+sst_stack <- c(temp_2008, temp_2009, temp_2010, temp_2011, temp_2012)
 ```
 
 
@@ -48,15 +49,14 @@ st_crs(sst_stack) == st_crs(depth)
 st_crs(depth) == st_crs(wc_eez)
 st_crs(sst_stack) == st_crs(wc_eez)
 
-sst_stack_recrs <- st_transform(sst_stack, st_crs(depth))
-
+sst_stack_recrs <- project(sst_stack, crs(depth))
 
 ```
 
 
 ```{r}
 # Find average SST
-mean_sst <- st_apply(sst_stack_recrs, c("x", "y"), mean, na.rm = TRUE)
+mean_sst <- app(sst_stack_recrs, mean, na.rm = TRUE)
 
 # Convert average SST from Kelvin to Celsius
 mean_sst_c <- mean_sst - 273.15
@@ -67,15 +67,16 @@ mean_sst_c <- mean_sst - 273.15
 ```{r}
 # Crop depth raster to match the extent of the SST raster
 
-depth_crop <- st_crop(depth, mean_sst_c)
+depth_crop <- crop(depth, mean_sst_c)
 
 # Resample the depth data to match the resolution of the SST data using the nearest neighbor approach
 
-depth_resample <- st_warp(depth_crop, mean_sst_c, method = "near")
+depth_resample <- resample(depth_crop, mean_sst_c, method = "near")
 
 # check that the depth and SST match in resolution, extent, and coordinate reference system
+# make this into if else statement?
 
-sst_depth <- c(depth_resample, mean_sst_c, along = "geometry")
+sst_depth <- c(depth_resample, mean_sst_c)
 
 ```
 
@@ -91,13 +92,37 @@ depth: 0-24 meters below sea level
 
 ```{r}
 # Define the suitable SST range
-oyster_sst <- ifelse(mean_sst_c >= 11 & mean_sst_c <= 30, 1, 0)
+oyster_sst <- ifel(mean_sst_c >= 11 & mean_sst_c <= 30, 1, 0)
 
 # Define the suitable depth range
-oyster_depth <- ifelse(depth_resample >= 0 & depth_resample <= 70, 1, 0)
+oyster_depth <- ifel(depth_resample >= 0 & depth_resample <= 70, 1, 0)
 
-# Combine the suitable SST and depth
-oyster_locations <- c(oyster_sst, oyster_depth)
+# make function 
+oyster_fun <- function(oyster_depth, oyster_sst){
+ oyster_locations <- ifel(oyster_sst == 1 & oyster_depth == 1, 1, 0)
+  return(oyster_locations)
+}  
+
+oyster_locations <- oyster_fun(oyster_depth, oyster_sst)
+
+plot(oyster_locations)
+```
+
+## Determine the most suitable EEZ
+
+```{r}
+# select suitable cells within west coast EEZs
+
+oyster_locations_vec <- as.polygons(oyster_locations) |>
+  st_as_sf() |>
+  mutate(suitable = mean == 1)
+
+
+wc_eez <- st_as_sf(wc_eez)
+# need to actually plot by individual EEZs to find oyster locations within them
+oyster_eez <- st_intersection(wc_eez, oyster_locations_vec)
+
+
 
 ```
 
