@@ -1,0 +1,74 @@
+---
+title: "HWK 4"
+author: "Emma Bea Mitchell"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+red abalone - Haliotis rufescens
+
+```{r}
+# Load packages
+library(tidyverse)
+library(here)
+library(tmap)
+library(stars)
+library(terra)
+library(sf)
+```
+
+
+```{r}
+# Read in data
+wc_eez <- st_read(here("data", "data", 'wc_regions_clean.shp'))
+temp_2008 <- read_stars(here("data", "data", "average_annual_sst_2008.tif"))
+temp_2009 <- read_stars(here("data", "data", "average_annual_sst_2009.tif"))
+temp_2010 <- read_stars(here("data", "data", "average_annual_sst_2010.tif"))
+temp_2011 <- read_stars(here("data", "data", "average_annual_sst_2011.tif"))
+temp_2012 <- read_stars(here("data", "data", "average_annual_sst_2012.tif"))
+depth <- read_stars(here("data", "data", "depth.tif"))
+```
+
+
+```{r}
+# combine temp rasters into stack
+sst_stack <- c(temp_2008, temp_2009, temp_2010, temp_2011, temp_2012, along = "time")
+```
+
+
+```{r}
+# Check if crs match
+st_crs(sst_stack) == st_crs(depth)
+st_crs(depth) == st_crs(wc_eez)
+```
+
+
+```{r}
+# Find average SST
+mean_sst <- st_apply(sst_stack, c("x", "y"), mean, na.rm = TRUE)
+
+# Convert average SST from Kelvin to Celsius
+mean_sst_c <- mean_sst - 273.15
+
+```
+
+
+```{r}
+# Crop depth raster to match the extent of the SST raster
+
+depth_crop <- st_crop(depth, mean_sst_c)
+
+# Resample the depth data to match the resolution of the SST data using the nearest neighbor approach
+
+depth_resample <- st_warp(depth_crop, mean_sst_c, method = "near")
+
+# check that the depth and SST match in resolution, extent, and coordinate reference system
+
+sst_depth <- c(depth_resample, mean_sst_c, along = "geometry")
+```
+
+```{r}
+
+```
+
