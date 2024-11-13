@@ -8,6 +8,8 @@ editor_options:
 
 red abalone - Haliotis rufescens
 
+#### Load libraries
+
 ```{r}
 # Load packages
 library(tidyverse)
@@ -18,6 +20,7 @@ library(terra)
 library(sf)
 ```
 
+#### Read in data
 
 ```{r}
 # Read in data
@@ -30,6 +33,7 @@ temp_2012 <- read_stars(here("data", "data", "average_annual_sst_2012.tif"))
 depth <- read_stars(here("data", "data", "depth.tif"))
 ```
 
+## Process data
 
 ```{r}
 # combine temp rasters into stack
@@ -39,14 +43,20 @@ sst_stack <- c(temp_2008, temp_2009, temp_2010, temp_2011, temp_2012, along = "t
 
 ```{r}
 # Check if crs match
+# make into function or for loop
 st_crs(sst_stack) == st_crs(depth)
 st_crs(depth) == st_crs(wc_eez)
+st_crs(sst_stack) == st_crs(wc_eez)
+
+sst_stack_recrs <- st_transform(sst_stack, st_crs(depth))
+
+
 ```
 
 
 ```{r}
 # Find average SST
-mean_sst <- st_apply(sst_stack, c("x", "y"), mean, na.rm = TRUE)
+mean_sst <- st_apply(sst_stack_recrs, c("x", "y"), mean, na.rm = TRUE)
 
 # Convert average SST from Kelvin to Celsius
 mean_sst_c <- mean_sst - 273.15
@@ -66,9 +76,28 @@ depth_resample <- st_warp(depth_crop, mean_sst_c, method = "near")
 # check that the depth and SST match in resolution, extent, and coordinate reference system
 
 sst_depth <- c(depth_resample, mean_sst_c, along = "geometry")
+
 ```
 
+## Find suitable locations
+
+oysters:
+sea surface temperature: 11-30°C
+depth: 0-70 meters below sea level
+
+red abalone: 
+sea surface temperature: 8°C - 18°C 
+depth: 0-24 meters below sea level
+
 ```{r}
+# Define the suitable SST range
+oyster_sst <- ifelse(mean_sst_c >= 11 & mean_sst_c <= 30, 1, 0)
+
+# Define the suitable depth range
+oyster_depth <- ifelse(depth_resample >= 0 & depth_resample <= 70, 1, 0)
+
+# Combine the suitable SST and depth
+oyster_locations <- c(oyster_sst, oyster_depth)
 
 ```
 
