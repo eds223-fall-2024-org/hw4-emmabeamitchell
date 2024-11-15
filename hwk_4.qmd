@@ -117,8 +117,7 @@ oyster_locations_vec <- as.polygons(oyster_locations) |>
   st_as_sf() |>
   mutate(suitable = mean == 1)
 
-
-wc_eez <- st_as_sf(wc_eez)
+## I'm honestly not sure if I should do any of the below code chunk, the intention was to find the intersection of the suitable oyster and eez data for each eez. In actuality, I think creating these new variables may have been unnecessary. Maybe I can work with the rows in the wc_eez column instead. Otherwise maybe don't do the intersection in the for loop, and instead recombine geometries and then do intersection with combined geometries. Does that make sense to do when simply trying to identify suitable cells within wc_eezs. I think I may be working too much with wc_eez data when I should be working with manipulating oyster data
 
 ## make this into a function/for loop
 oregon_eez <- wc_eez |> 
@@ -150,9 +149,7 @@ for (region in regions) {
 
 ```{r}
 
-
-
-
-
+# need to rasterize data????
+wc_eez_rast <- rasterize(wc_eez)
 ```
 
