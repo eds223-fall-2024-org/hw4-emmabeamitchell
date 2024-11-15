@@ -119,8 +119,38 @@ oyster_locations_vec <- as.polygons(oyster_locations) |>
 
 
 wc_eez <- st_as_sf(wc_eez)
-# need to actually plot by individual EEZs to find oyster locations within them
-oyster_eez <- st_intersection(wc_eez, oyster_locations_vec)
+
+## make this into a function/for loop
+oregon_eez <- wc_eez |> 
+  filter(rgn == "Oregon") |> 
+  dplyr::select(rgn, geometry)
+
+
+
+# Define the function to filter and select for a specific region
+eez_region <- function(data, region_name) {
+  filtered_data <- data %>%
+    filter(rgn == region_name) %>%
+    dplyr::select(rgn, geometry)
+  return(filtered_data)
+}
+
+regions <- c("Oregon", "Northern California", "Central California", "Southern California", "Washington")
+
+# Loop through each region and find intersections and assign the filtered data into a new variable 
+for (region in regions) { 
+  variable_name <- gsub(" ", "_", region) 
+  filtered_data <- eez_region(wc_eez, region)
+  intersection <- st_intersection(filtered_data, oyster_locations_vec)
+  assign(paste0(variable_name, "_intersection"), intersection)
+  }
+
+```
+
+
+```{r}
+
+
 
 
 
