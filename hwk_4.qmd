@@ -135,11 +135,6 @@ plot(oyster_eez, main = "Intersected Oyster Locations with EEZ")
 ```{r}
 # group by eez, write function to find suitable locations in each eez 
 
-locations_by_eez <- merge(oyster_eez, wc_eez_rast) |> 
-  group_by(rgn) |> 
-  summarise(elevation = sum(suitable == 1, na.rm = TRUE))
-
-
 
 # Step 1: Convert SpatRaster objects to data frames
 oyster_eez_df <- as.data.frame(oyster_eez, xy = TRUE) |>
@@ -158,8 +153,7 @@ locations_by_eez <- merged_df %>%
 
 print(locations_by_eez)
 
-merged_rast <- rasterize(merged_df)
-# probably want to replot this to show suitable locations and eezs
+# probably want to replot this to show suitable locations and eezs (turn back into raster? or vector)
 ```
 
 ## Make a function
