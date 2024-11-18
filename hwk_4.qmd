@@ -106,50 +106,70 @@ oyster_fun <- function(oyster_depth, oyster_sst){
 oyster_locations <- oyster_fun(oyster_depth, oyster_sst)
 
 plot(oyster_locations)
+
+
 ```
 
 ## Determine the most suitable EEZ
 
 ```{r}
-# select suitable cells within west coast EEZs
+# cropping suitable oyster locations to the eezs 
 
-oyster_locations_vec <- as.polygons(oyster_locations) |>
-  st_as_sf() |>
-  mutate(suitable = mean == 1)
-
-## I'm honestly not sure if I should do any of the below code chunk, the intention was to find the intersection of the suitable oyster and eez data for each eez. In actuality, I think creating these new variables may have been unnecessary. Maybe I can work with the rows in the wc_eez column instead. Otherwise maybe don't do the intersection in the for loop, and instead recombine geometries and then do intersection with combined geometries. Does that make sense to do when simply trying to identify suitable cells within wc_eezs. I think I may be working too much with wc_eez data when I should be working with manipulating oyster data
-
-## make this into a function/for loop
-oregon_eez <- wc_eez |> 
-  filter(rgn == "Oregon") |> 
-  dplyr::select(rgn, geometry)
+# rasterize eez data
+wc_eez_rast <- rasterize(wc_eez, oyster_locations, "rgn")
 
 
+# Crop oyster_locations to the extent of wc_eez_rast
+cropped_oyster_locations <- crop(oyster_locations, wc_eez_rast)
 
-# Define the function to filter and select for a specific region
-eez_region <- function(data, region_name) {
-  filtered_data <- data %>%
-    filter(rgn == region_name) %>%
-    dplyr::select(rgn, geometry)
-  return(filtered_data)
-}
+# Mask the cropped oyster_locations with wc_eez_rast
+oyster_eez <- mask(cropped_oyster_locations, wc_eez_rast)
 
-regions <- c("Oregon", "Northern California", "Central California", "Southern California", "Washington")
+# Plot the result
+plot(oyster_eez, main = "Intersected Oyster Locations with EEZ")
 
-# Loop through each region and find intersections and assign the filtered data into a new variable 
-for (region in regions) { 
-  variable_name <- gsub(" ", "_", region) 
-  filtered_data <- eez_region(wc_eez, region)
-  intersection <- st_intersection(filtered_data, oyster_locations_vec)
-  assign(paste0(variable_name, "_intersection"), intersection)
-  }
 
 ```
 
 
 ```{r}
+# group by eez, write function to find suitable locations in each eez 
 
-# need to rasterize data????
-wc_eez_rast <- rasterize(wc_eez)
+locations_by_eez <- merge(oyster_eez, wc_eez_rast) |> 
+  group_by(rgn) |> 
+  summarise(elevation = sum(suitable == 1, na.rm = TRUE))
+
+
+
+# Step 1: Convert SpatRaster objects to data frames
+oyster_eez_df <- as.data.frame(oyster_eez, xy = TRUE) |>
+    mutate(suitable = mean == 1)
+wc_eez_df <- as.data.frame(wc_eez_rast, xy = TRUE)
+
+# Merge the data frames based on coordinates
+merged_df <- merge(oyster_eez_df, wc_eez_df, by = c("x", "y"))
+
+# Step 2: Group and summarize
+# Assuming 'rgn' is a column in the merged data frame and 'suitable' is a column indicating suitability
+locations_by_eez <- merged_df %>%
+  group_by(rgn) %>%
+  summarise(oyster_locals = sum(suitable == 1, na.rm = TRUE)) |>
+  arrange(desc(oyster_locals), .by_group=TRUE)
+
+print(locations_by_eez)
+
+merged_rast <- rasterize(merged_df)
+# probably want to replot this to show suitable locations and eezs
+```
+
+## Make a function
+
+```{r}
+# now make it into a function???
+
+
+
+
+
 ```
 
