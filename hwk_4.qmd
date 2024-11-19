@@ -145,7 +145,6 @@ wc_eez_df <- as.data.frame(wc_eez_rast, xy = TRUE)
 merged_df <- merge(oyster_eez_df, wc_eez_df, by = c("x", "y"))
 
 # Step 2: Group and summarize
-# Assuming 'rgn' is a column in the merged data frame and 'suitable' is a column indicating suitability
 locations_by_eez <- merged_df %>%
   group_by(rgn) %>%
   summarise(oyster_locals = sum(suitable == 1, na.rm = TRUE)) |>
@@ -153,16 +152,146 @@ locations_by_eez <- merged_df %>%
 
 print(locations_by_eez)
 
+
 # probably want to replot this to show suitable locations and eezs (turn back into raster? or vector)
 ```
 
 ## Make a function
 
 ```{r}
-# now make it into a function???
+files <- list.files(here("data", "data"), pattern = "average", full.names = TRUE)
+```
+
+```{r}
+suitability_fun <- function(suitable_depth, suitable_sst){
+ suitable_locations <- ifel(suitable_sst == 1 & suitable_depth == 1, 1, 0)
+  return(suitable_locations)
+}  
+
+
+```
+
+
+```{r}
+# now make it into a function
+
+eez_suitability <- function(a, b, c, d){
+  # read in temp data and stack
+  temps <- sst_stack(terra::rast(files[1:5]))
+  # read in depth data
+  depth <- rast(here("data", "data", "depth.tif"))
+  # read in eez data
+  wc_eez <- st_read(here("data", "data", 'wc_regions_clean.shp'))
+  #check crs
+  if st_crs(temps) == st_crs(depth) == st_crs(wc_eez){
+    pass
+  } else {
+    project(c(temps, wc_eez), crs(depth)) 
+  }
+  # average SST in celcius
+  mean_sst <- app(temps, mean, na.rm = TRUE) - 273.15
+  # Crop depth raster to match the extent of the SST raster
+  depth_crop <- crop(depth, mean_sst)
+  # Resample the depth data to match SST 
+  depth_resample <- resample(depth_crop, mean_sst, method = "near")
+  # Define the suitable SST range
+  suitable_sst <- ifel(mean_sst >= a & mean_sst <= b, 1, 0)
+  # Define the suitable depth range
+  suitable_depth <- ifel(depth_resample >= c & depth_resample <= d, 1, 0)
+  # combine 
+  suitable_locations <- oyster_fun(suitable_depth, suitable_sst)
+  # rasterize eez data
+  wc_eez_rast <- rasterize(wc_eez, suitable_locations, "rgn")
+  # Crop oyster_locations to the extent of wc_eez_rast
+  cropped_suitable_locations <- crop(suitable_locations, wc_eez_rast)
+  # Mask the cropped oyster_locations with wc_eez_rast
+  suitable_eez <- mask(cropped_suitable_locations, wc_eez_rast)
+  # Convert SpatRaster objects to data frames
+  suitable_eez_df <- as.data.frame(suitable_eez, xy = TRUE) |>
+    mutate(suitable = mean == 1)
+  wc_eez_df <- as.data.frame(wc_eez_rast, xy = TRUE)
+  # Merge the data frames based on coordinates
+  merged_df <- merge(oyster_eez_df, wc_eez_df, by = c("x", "y"))
+  # Group and summarize
+locations_by_eez <- merged_df %>%
+  group_by(rgn) %>%
+  summarise(suitable_places = sum(suitable == 1, na.rm = TRUE)) |>
+  arrange(desc(suitable_places), .by_group=TRUE)
+  return(locations_by_eez)
+}
 
 
 
+
+```
+
+
+```{r}
+
+eez_suitability <- function(a, b, c, d) {
+  # Read in temp data and stack
+  temps <- rast(files[1:5])
+  
+  depth <- rast(here("data", "data", "depth.tif"))
+  
+  # read in eez data
+  wc_eez <- st_read(here("data", "data", 'wc_regions_clean.shp'))
+  
+  # Check CRS and project if necessary
+  if (!identical(crs(temps), crs(depth)) || !identical(crs(temps), st_crs(wc_eez))) {
+    temps <- project(temps, crs(depth))
+    wc_eez <- st_transform(wc_eez, crs(depth))
+  }
+  
+  # Average SST in Celsius
+  mean_sst <- app(temps, mean, na.rm = TRUE) - 273.15
+  
+  # Crop depth raster to match the extent of the SST raster
+  depth_crop <- crop(depth, mean_sst)
+  
+  # Resample the depth data to match SST
+  depth_resample <- resample(depth_crop, mean_sst, method = "near")
+  
+  # Define the suitable SST range
+  suitable_sst <- ifel(mean_sst >= a & mean_sst <= b, 1, 0)
+  
+  # Define the suitable depth range
+  suitable_depth <- ifel(depth_resample >= c & depth_resample <= d, 1, 0)
+  
+  # Combine suitable SST and depth
+  suitable_locations <- suitable_sst * suitable_depth
+  
+  # Rasterize EEZ data
+  wc_eez_rast <- rasterize(vect(wc_eez), suitable_locations, field = "rgn", touches = TRUE)
+  
+  # Crop suitable_locations to the extent of wc_eez_rast
+  cropped_suitable_locations <- crop(suitable_locations, wc_eez_rast)
+  
+  # Mask the cropped suitable_locations with wc_eez_rast
+  suitable_eez <- mask(cropped_suitable_locations, wc_eez_rast)
+  
+  # Convert SpatRaster objects to data frames
+  suitable_eez_df <- as.data.frame(suitable_eez, xy = TRUE) %>%
+    mutate(suitable = suitable_eez == 1)
+  
+  wc_eez_df <- as.data.frame(wc_eez_rast, xy = TRUE)
+  
+  # Merge the data frames based on coordinates
+  merged_df <- merge(suitable_eez_df, wc_eez_df, by = c("x", "y"))
+  
+  # Group and summarize
+  locations_by_eez <- merged_df %>%
+    group_by(rgn) %>%
+    summarise(suitable_places = sum(suitable, na.rm = TRUE)) %>%
+    arrange(desc(suitable_places), .by_group = TRUE)
+  
+  return(locations_by_eez)
+}
+
+```
+
+```{r}
+eez_suitability
 
 
 ```
