@@ -139,17 +139,13 @@ plot(oyster_eez, main = "Intersected Oyster Locations with EEZ")
 tm_shape(wc_eez_rast) +
   tm_raster() 
 
-zonal_oyster <- zonal(oyster_eez, wc_eez_rast, fun = "sum", na.rm = TRUE) 
-zonal_oyster
-
-
-area_cell <- cellSize(oyster_eez)
+area_cell <- cellSize(oyster_eez, unit = "km")
 the_answer <- oyster_eez * area_cell
 
 # zonal : summarize values in SpatRaster x based on zones in SpatRaster y
 
-zonal_answer <- zonal(the_answer, wc_eez_rast, fun = "sum", na.rm = TRUE) 
-zonal_answer
+zonal_answer <- zonal(the_answer, wc_eez_rast, "sum", na.rm = TRUE) 
+zonal_answer 
 ```
 
 ## Make a function
@@ -171,16 +167,6 @@ suitable_function <- function (i) {
 }
 
 
-
-```
-
-
-```{r}
-if crs(sst_stack) == crs(depth) & crs(sst_stack) == crs(wc_eez) & crs(dept) == crs(wc_eez) {
-  message("CRSs match") 
-} else { 
-  warning("CRSs do not match")
-}
 
 ```
 
