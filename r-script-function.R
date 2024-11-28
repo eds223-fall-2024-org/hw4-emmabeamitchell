@@ -5,14 +5,10 @@ aqua_fun <- function (maxsst, minsst, maxdepth, mindepth) {
   sst <- c(rast(files))
   wc_eez <- st_read(here("data", "data", 'wc_regions_clean.shp'))
   depth <- rast(here("data", "data", "depth.tif"))
-  # add function for checking crs?
-  if (crs(sst == depth) & crs(sst == wc_eez) & crs(depth) == wc_eez_crs) {
-    message("CRSs match") 
-    } else { 
-      warning("CRSs do not match")
-    }
   # reproject
   sst_stack_recrs <- project(sst, crs(depth))
+  wc_eez <- st_transform(wc_eez, crs(depth))
+  
   # find mean sst
   mean_sst <- app(sst_stack, mean)
   # switch to cel.
@@ -42,21 +38,24 @@ aqua_fun <- function (maxsst, minsst, maxdepth, mindepth) {
   cropped_animal_locations <- crop(reclass_all, wc_eez_rast)
   # mask animal locations to only eez
   animal_eez <- mask(cropped_animal_locations, wc_eez_rast)
-  # find masked values
-  masked_values <- values(animal_eez)
-  masked_values <- masked_values[!is.na(masked_values)]
   # find cell area of animal_eez
-  area_cell <- cellSize(animal_eez)
+  area_cell <- cellSize(animal_eez, unit = "km")
   # find the answer :)
-  the_answer <- sum(masked_values) * area_cell
+  the_answer <- animal_eez * area_cell
   # plot at the end with species name
+  zonal_answer <- zonal(the_answer, wc_eez_rast, "sum", na.rm = TRUE) 
+  zonal_answer 
 }
+
+# oysters:
+#   sea surface temperature: 11-30°C
+# depth: 0-70 meters below sea level
 
 # red abalone: 
 #   sea surface temperature: 8°C - 18°C 
 # depth: 0-24 meters below sea level
-
-aqua_fun(18, 8, 24, 0)
+(maxsst, minsst, maxdepth, mindepth)
+aqua_fun(30, 11, 0, -70)
 
 #   transform crs
 #   process SST (mean, Cel)

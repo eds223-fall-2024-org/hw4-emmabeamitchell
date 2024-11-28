@@ -98,9 +98,9 @@ oyster_sst <- matrix(c(-Inf, 11, 0,
                 ncol = 3, byrow = TRUE)
 
 
-oyster_depth <- matrix(c(-Inf, 0, 0,
-                          0, 70, 1, 
-                         70, Inf, 0),
+oyster_depth <- matrix(c(-Inf, -70, 0,
+                          -70, 0, 1, 
+                         0, Inf, 0),
                      ncol = 3, byrow = TRUE)
 
 # use reclassification matrix to reclassify elevation raster
@@ -151,20 +151,20 @@ zonal_answer
 ## Make a function
 
 ```{r}
-files <- list.files(here("data", "data"), pattern = "average", full.names = TRUE)
-
-suitable_function <- function (i) {
-  sst <- rast(files[i])
-  transform crs
-  process SST (mean, Cel)
-  crop, resample
-  reclassify
-  sst depth multiplication
-  rasterize eez
-  crop and mask to eez
-  find area of grid cells
-  find total suitable area
-}
+# files <- list.files(here("data", "data"), pattern = "average", full.names = TRUE)
+# 
+# suitable_function <- function (i) {
+#   sst <- rast(files[i])
+#   transform crs
+#   process SST (mean, Cel)
+#   crop, resample
+#   reclassify
+#   sst depth multiplication
+#   rasterize eez
+#   crop and mask to eez
+#   find area of grid cells
+#   find total suitable area
+# }
 
 
 
