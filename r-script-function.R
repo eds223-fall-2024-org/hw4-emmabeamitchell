@@ -30,6 +30,8 @@ aqua_fun <- function (maxsst, minsst, maxdepth, mindepth) {
   # reclassify
   reclassified_sst <- classify(mean_sst_c, rcl = animal_sst)
   reclassified_depth <- classify(depth_resample, rcl = animal_depth)
+  # rematch CRSs
+  reclassified_depth <- project(reclassified_depth, reclassified_sst)
   # multiple together to combine
   reclass_all <- reclassified_sst * reclassified_depth
   # rasterize eez
@@ -47,24 +49,20 @@ aqua_fun <- function (maxsst, minsst, maxdepth, mindepth) {
   zonal_answer 
 }
 
+
+# maxsst, minsst, maxdepth, mindepth
+
 # oysters:
 #   sea surface temperature: 11-30°C
 # depth: 0-70 meters below sea level
 
+
+
+aqua_fun(30, 11, 0, -70)
+
 # red abalone: 
 #   sea surface temperature: 8°C - 18°C 
 # depth: 0-24 meters below sea level
-(maxsst, minsst, maxdepth, mindepth)
-aqua_fun(30, 11, 0, -70)
 
-#   transform crs
-#   process SST (mean, Cel)
-#   crop, resample
-#   reclassify
-#   sst depth multiplication
-#   rasterize eez
-#   crop and mask to eez
-#   find area of grid cells
-#   find total suitable area
-
+aqua_fun(18, 8, 0, -24)
 
