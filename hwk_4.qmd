@@ -3,14 +3,27 @@ title: "HWK 4"
 author: "Emma Bea Mitchell"
 format: html
 editor_options: 
+execute:
+  eval: true
+  warning: false
+  message: false
   chunk_output_type: console
 ---
+# Prioritizing Potential Aquaculture
 
-red abalone - Haliotis rufescens
+## Background: 
+
+The West Coast contains multiple Exclusive Economic Zones (EEZs). With appropriate data on sea surface temperature and depth in these zones, we can determine suitable locations for multiple marine aquaculture species. This information could be used to guide development locations for marine aquaculture.
+
+First, we determine suitable locations in each West Coast EEZ for oysters. Then, we will take that process and transform it into a function that can determine suitable locations for any marine aquaculture species as long as we know their required sea surface temperature and depth. 
 
 #### Load libraries
 
 ```{r}
+#| collapse: true
+#| output: false
+#| code-fold: true
+
 # Load packages
 library(tidyverse)
 library(here)
@@ -20,212 +33,306 @@ library(terra)
 library(sf)
 library(raster)
 library(kableExtra)
+library(viridisLite)
 ```
 
 #### Read in data
 
 ```{r}
+#| collapse: true
+#| output: false
+#| code-fold: true
+
 # Read in data
-wc_eez <- st_read(here("data", "data", 'wc_regions_clean.shp'))
-temp_2008 <- rast(here("data", "data", "average_annual_sst_2008.tif"))
-temp_2009 <- rast(here("data", "data", "average_annual_sst_2009.tif"))
-temp_2010 <- rast(here("data", "data", "average_annual_sst_2010.tif"))
-temp_2011 <- rast(here("data", "data", "average_annual_sst_2011.tif"))
-temp_2012 <- rast(here("data", "data", "average_annual_sst_2012.tif"))
-depth <- rast(here("data", "data", "depth.tif"))
+wc_eez <- st_read(here("data", 'wc_regions_clean.shp'))
+temp_2008 <- rast(here("data", "average_annual_sst_2008.tif"))
+temp_2009 <- rast(here("data", "average_annual_sst_2009.tif"))
+temp_2010 <- rast(here("data", "average_annual_sst_2010.tif"))
+temp_2011 <- rast(here("data", "average_annual_sst_2011.tif"))
+temp_2012 <- rast(here("data", "average_annual_sst_2012.tif"))
+depth <- rast(here("data", "depth.tif"))
 ```
 
 ## Process data
 
 ```{r}
+#| collapse: false
+
 # combine temp rasters into stack
 sst_stack <- c(temp_2008, temp_2009, temp_2010, temp_2011, temp_2012)
 ```
 
 
 ```{r}
+#| collapse: true
+#| warning: true
+#| message: true
+
 # Check if crs match
-# make into function or for loop
-st_crs(sst_stack) == st_crs(depth)
-st_crs(depth) == st_crs(wc_eez)
-st_crs(sst_stack) == st_crs(wc_eez)
+if(st_crs(wc_eez) == st_crs(depth)) {
+  print("CRSs match")
+} else{
+  warning("Updating coordinate reference systems to match")
+  # transform data to match
+  wc_eez <- st_transform(wc_eez, st_crs(depth))
+}
 
-sst_stack_recrs <- project(sst_stack, crs(depth))
-
+if(st_crs(sst_stack) == st_crs(depth)) {
+  print("CRSs match")
+} else{
+  warning("Updating coordinate reference systems to match")
+  # transform data to match
+  sst_stack <- project(sst_stack, crs(depth))
+}
 ```
 
+#### Our sea surface temperature data is from multiple years and is represented in Kelvin. Let's fix this by finding the mean of the yearly temperatures in each location and converting to Celsius for easier wrangling
 
 ```{r}
-# Find average SST
+#| collapse: true
+
+# Find average SST 
 mean_sst <- app(sst_stack, mean)
 
 # Convert average SST from Kelvin to Celsius
 mean_sst_c <- mean_sst - 273.15
-
 ```
 
+#### Wrangle data so that sst and depth data can work together
 
 ```{r}
-# Crop depth raster to match the extent of the SST raster
+#| collapse: true
 
+# Crop depth raster to match the extent of the SST raster
 depth_crop <- crop(depth, mean_sst_c)
 
 # Resample the depth data to match the resolution of the SST data using the nearest neighbor approach
-
 depth_resample <- resample(depth_crop, mean_sst_c, method = "near")
 
-# check that the depth and SST match in resolution, extent, and coordinate reference system
-# make this into if else statement? # test again at bottom?
-
-sst_depth <- merge(depth_resample, mean_sst_c)
-
+# check that the depth and SST match in resolution, extent, and CRS
+sst_depth_test <- c(depth_resample, mean_sst_c)
 ```
 
 ## Find suitable locations
 
-oysters:
-sea surface temperature: 11-30°C
-depth: 0-70 meters below sea level
-
-red abalone: 
-sea surface temperature: 8°C - 18°C 
-depth: 0-24 meters below sea level
+#### Oysters require a sea surface temperature of 11-30°C, and a depth of 0-70 meters below sea level. Let's use that information to find suitable locations on the West Coast for oysters. 
 
 ```{r}
+#| collapse: true
+
+# set reclassification matrix for temperature
 oyster_sst <- matrix(c(-Inf, 11, 0,
                 11, 30, 1, 
                 30, Inf, 0),
                 ncol = 3, byrow = TRUE)
 
-
+# set reclassification matrix for depth
 oyster_depth <- matrix(c(-Inf, -70, 0,
                           -70, 0, 1, 
                          0, Inf, 0),
                      ncol = 3, byrow = TRUE)
 
-# use reclassification matrix to reclassify elevation raster
+# use reclassification matrix to reclassify sst
 reclassified_sst <- classify(mean_sst_c, rcl = oyster_sst)
 
+# confirm that it worked with preliminary plot
 plot(reclassified_sst)
+
+# use reclassification matrix to reclassify depth
 reclassified_depth <- classify(depth_resample, rcl = oyster_depth)
 
-reclassified_depth <- project(reclassified_depth, reclassified_sst)
+# confirm that it worked with preliminary plot
+plot(reclassified_depth)
+
+# Set unsuitable locations to NA, so we can work with suitable locations only
+reclassified_sst[reclassified_sst == 0] <- NA
+reclassified_depth[reclassified_depth == 0] <- NA
+
+# Set reclassified data to have matching CRSs
+reclassified_sst <- project(reclassified_sst, reclassified_depth)
+
+# Multiply reclassified rasters together to find suitable location overlap
 reclass_all <- reclassified_sst * reclassified_depth
 
+# confirm that it worked with preliminary plot
 plot(reclass_all)
 ```
 
 ## Determine the most suitable EEZ
 
-```{r}
-# cropping suitable oyster locations to the eezs 
+#### We want to not only find where suitable locations for oysters are on the West Coast, we also want to find where they are in relation to the EEZs in the area. This requires some additional data wrangling. 
 
-# rasterize eez data
+```{r}
+#| collapse: true
+
+# Rasterize eez data
 wc_eez_rast <- rasterize(wc_eez, reclass_all, "rgn")
 
+# confirm that it worked with preliminary plot
 plot(wc_eez_rast)
 
 # Crop oyster_locations to the extent of wc_eez_rast
 cropped_oyster_locations <- crop(reclass_all, wc_eez_rast)
 
-plot(cropped_oyster_locations)
-
 # Mask the cropped oyster_locations with wc_eez_rast
 oyster_eez <- mask(cropped_oyster_locations, wc_eez_rast)
 
-# Plot the result
-plot(oyster_eez, main = "Intersected Oyster Locations with EEZ")
+# Preliminary plot of the result
+plot(oyster_eez, main = "Oyster Locations Intersecting with EEZs")
 
-tm_shape(wc_eez_rast) +
-  tm_raster() 
+# Use cell size to find area in km of masked oyster data
+area_cell <- cellSize(oyster_eez, 
+                      mask = TRUE,
+                      unit = "km")
 
-area_cell <- cellSize(oyster_eez, unit = "km")
-the_answer <- oyster_eez * area_cell
+# multiply oyster data by area_cell data to find area of eez
+eez_area <- oyster_eez * area_cell
 
-# zonal : summarize values in SpatRaster x based on zones in SpatRaster y
 
-zonal_answer <- zonal(the_answer, wc_eez_rast, "sum", na.rm = TRUE) 
-zonal_answer 
+# Use zonal function to split suitable cell area into zones
+eez_suitable <- zonal(x = eez_area, 
+                      z = wc_eez_rast, 
+                      fun = 'sum', 
+                      na.rm = TRUE) 
+
+# Join for plotting
+eez <- left_join(wc_eez, eez_suitable, by = "rgn")
 ```
 
-## Make a function
+## Let's see our results!
 
 ```{r}
-files <- list.files(here("data", "data"), pattern = "average", full.names = TRUE)
+#| collapse: true
 
-aqua_fun <- function (maxsst, minsst, maxdepth, mindepth) {
-  # read in rasters 
-  sst <- c(rast(files))
-  wc_eez <- st_read(here("data", "data", 'wc_regions_clean.shp'))
-  depth <- rast(here("data", "data", "depth.tif"))
-  # reproject
-  sst_stack_recrs <- project(sst, crs(depth))
-  wc_eez <- st_transform(wc_eez, crs(depth))
+# Table of area of suitable locations by area in EEZs
+kable(eez_suitable, digits = 2,
+      caption = "Suitable area for oysters in West Coast EEZs", 
+      col.names = c("EEZ Region", "Area (km^2)"))
+
   
-  # find mean sst
+# Map of suitable oyster habitats in West Coast EEZs
+tm_shape(depth) +
+  tm_raster(palette = "-GnBu",
+            title = "Bathymetry\n(m above and below sea level)",
+            midpoint = 0,
+            legend.show = FALSE) +
+  tm_shape(eez, raster.downsample = TRUE) +
+  tm_polygons(col = "mean",
+              palette = "Purples",
+              alpha = 0.8,
+              linewidth = 0.2,
+              title = expression("Suitable habitat area (km"^2*")")) +
+  tm_text("rgn", size = 0.45) +
+  tm_compass(size = .5,
+             position = c("left", "bottom")) +
+  tm_scale_bar(position = c("left", "bottom")) +
+  tm_layout(legend.outside = TRUE,
+            frame = FALSE,
+            main.title = "Suitable Oyster Habitats by West Coast EEZs\n(Exclusive Economic Zones)",
+            main.title.size = .7)
+
+```
+
+## Let's make our oyster workflow into a function usable for any species
+
+#### Our inputs are the maximum and minimum sea surface temperatures and depths needed for that species, as well as the name of the species. Our outputs will be a map showing suitable locations for that species by EEZ.
+
+* There are some steps from our oyster workflow that we will skip here, because we already have the necessary information from the previous workflow. All data we are using is the same, so checks like CRSs are omitted. 
+```{r}
+#| code-fold: true
+#| collapse: true
+
+# List files to read in
+files <- list.files(here("data"), pattern = "average", full.names = TRUE)
+
+# Make a function
+aqua_fun <- function (maxsst, minsst, maxdepth, mindepth, species) {
+  # Read in rasters 
+  sst <- c(rast(files))
+  wc_eez <- st_read(here("data", 'wc_regions_clean.shp'))
+  depth <- rast(here("data", "depth.tif"))
+  #Find mean sst
   mean_sst <- app(sst_stack, mean)
-  # switch to cel.
+  # Switch to cel.
   mean_sst_c <- mean_sst - 273.15
   # crop depth
   depth_crop <- crop(depth, mean_sst_c)
-  # resample depth
+  # Resample depth
   depth_resample <- resample(depth_crop, mean_sst_c, method = "near")
-  # suitable sst matrix
+  # Suitable sst matrix
   animal_sst <- matrix(c(-Inf, minsst, 0,
                          minsst, maxsst, 1, 
                          maxsst, Inf, 0),
                        ncol = 3, byrow = TRUE)
-  # suitable depth matrix
+  # Suitable depth matrix
   animal_depth <- matrix(c(-Inf, mindepth, 0,
                          mindepth, maxdepth, 1, 
                          maxdepth, Inf, 0),
                        ncol = 3, byrow = TRUE)
-  # reclassify
+  # Reclassify
   reclassified_sst <- classify(mean_sst_c, rcl = animal_sst)
   reclassified_depth <- classify(depth_resample, rcl = animal_depth)
+  reclassified_sst[reclassified_sst == 0] <- NA
+  reclassified_depth[reclassified_depth == 0] <- NA
   # rematch CRSs
   reclassified_depth <- project(reclassified_depth, reclassified_sst)
-  # multiple together to combine
+  # Multiple together to combine
   reclass_all <- reclassified_sst * reclassified_depth
-  # rasterize eez
+  # Rasterize eez
   wc_eez_rast <- rasterize(wc_eez, reclass_all, "rgn")
-  # crop reclassified data to eez
+  # Crop reclassified data to eez
   cropped_animal_locations <- crop(reclass_all, wc_eez_rast)
-  # mask animal locations to only eez
+  # Mask animal locations to only eez
   animal_eez <- mask(cropped_animal_locations, wc_eez_rast)
-  # find cell area of animal_eez
-  area_cell <- cellSize(animal_eez, unit = "km")
-  # find the answer :)
-  the_answer <- animal_eez * area_cell
-  # plot at the end with species name
-  zonal_answer <- zonal(the_answer, wc_eez_rast, "sum", na.rm = TRUE) 
-  print(zonal_answer)
+  # Find cell area of animal_eez
+  area_cell <- cellSize(animal_eez, 
+                        mask = TRUE,
+                        unit = "km")
+  # Multiply oyster data by area_cell data to find area of eez
+  eez_area <- animal_eez * area_cell
   
+  # Use zonal function to separate area by EEZ
+  zonal_area <- zonal(eez_area, wc_eez_rast, "sum", na.rm = TRUE) 
+  
+  # Join for plotting
+  eez <- left_join(wc_eez, eez_suitable, by = "rgn")
+  
+  # Map suitable locations by EEZ
+  tm_shape(depth) +
+    tm_raster(palette = "-GnBu",
+            title = "Bathymetry\n(m above and below sea level)",
+            midpoint = 0,
+            legend.show = FALSE) +
+   tm_shape(eez, raster.downsample = TRUE) +
+    tm_polygons(col = "mean",
+              palette = "Purples",
+              alpha = 0.8,
+              linewidth = 0.2,
+              title = expression("Suitable habitat area (km"^2*")")) +
+   tm_text("rgn", size = 0.45) +
+    tm_compass(size = .5,
+             position = c("left", "bottom")) +
+    tm_scale_bar(position = c("left", "bottom")) +
+    tm_layout(legend.outside = TRUE,
+            frame = FALSE,
+            main.title = paste0("Suitable Habitats by West Coast EEZs\n(Exclusive Economic Zones) for ", species),
+            main.title.size = .7)
 }
+```
 
+Oysters need a sea surface temperature of 11-30 degrees Celsius and a depth of 0-70 meters below sea level. Let's use that information to test our function
+```{r}
+#| quiet: true
+#| results: hide
 
+aqua_fun(30, 11, 0, -70, "Oysters")
+```
 
+Red Abalone need a sea surface temperature of 8-18 degrees Celsius and a depth of 0-24 meters below sea level. Let's use this information to input the new species into our function and confirm that it works for *non-oyster* species
+```{r}
+#| quiet: true
+#| results: hide
 
-tm_shape(the_answer_vector) +
-    tm_polygons() 
-+
-tm_shape(wc_eez_rast) +
-  tm_raster() 
-# maxsst, minsst, maxdepth, mindepth
-
-# oysters:
-#   sea surface temperature: 11-30°C
-# depth: 0-70 meters below sea level
-
-
-
-aqua_fun(30, 11, 0, -70)
-
-# red abalone: 
-#   sea surface temperature: 8°C - 18°C 
-# depth: 0-24 meters below sea level
-
-aqua_fun(18, 8, 0, -24)
-
+aqua_fun(18, 8, 0, -24, "Red Abalones")
 ```
 
