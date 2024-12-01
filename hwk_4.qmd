@@ -336,3 +336,17 @@ Red Abalone need a sea surface temperature of 8-18 degrees Celsius and a depth o
 aqua_fun(18, 8, 0, -24, "Red Abalones")
 ```
 
+## Final Thoughts:
+
+By creating a function, we can easily use all of the workflow created while looking into oysters, and use that to generalize a workflow for all species. Interestingly, the patterns of suitability look very similar for oysters and red abalone. That similarity could be due to the conditions of each EEZ and the relative similarity of requirements between the two species (although they are still certainly different and have different resulting numbers). This function can now be used to assist with aquaculture decisions. 
+
+## Citations:
+
+| Data                 | Source                                                    | Link                                                                  |
+|----------------------|-----------------------------------------------------------|-----------------------------------------------------------------------|
+| Depth                | GEBCO Gridded Bathymetry Data                             | https://www.gebco.net/data_and_products/gridded_bathymetry_data/#area |
+| SST                  | NOAA Global 5km Satellite Sea Surface Temperature Anomaly | https://coralreefwatch.noaa.gov/product/5km/index_5km_ssta.php        |
+| West Coast EEZs      | Marine Regions EEZ Boundaries                             | https://www.marineregions.org/eez.php                                 |
+| Species Requirements | SeaLifeBase                                               | https://www.sealifebase.ca/search.php                                 |
+
+
